@@ -1,0 +1,20 @@
+[project]
+name = "arachne"
+version = "0.2.0"
+description = "Run terminal commands on your Tailscale devices over SSH"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+arachne = "arachne:main_exit"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["arachne.py"]
