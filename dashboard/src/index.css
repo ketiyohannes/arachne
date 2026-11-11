@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/* Plain and quiet: system fonts, neutral surfaces, colour only where it carries meaning. */
+:root {
+  --bg: #f6f6f7;
+  --panel: #ffffff;
+  --line: #e3e4e8;
+  --track: #e9eaee;
+  --ink: #16181d;
+  --ink-2: #555b66;
+  --ink-3: #8b909a;
+  --accent: #2563eb;
+  --good: #1a8f3c;
+  --warn: #a15c00;
+  --bad: #c9372c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111214;
+    --panel: #1a1b1e;
+    --line: #2b2d32;
+    --track: #2b2d32;
+    --ink: #e8e9ec;
+    --ink-2: #a6abb5;
+    --ink-3: #737883;
+    --accent: #6ea0ff;
+    --good: #4cc26b;
+    --warn: #e0a03a;
+    --bad: #f0685c;
+  }
+}
+
+@theme inline {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-track: var(--track);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+
+  --animate-march: march 0.9s linear infinite;
+  @keyframes march {
+    to { stroke-dashoffset: -13; }
+  }
+}
+
+html {
+  color-scheme: light dark;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
