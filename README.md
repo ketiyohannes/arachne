@@ -103,8 +103,8 @@ desktop loop.
 
 `arachne dashboard` serves a read-only page on `http://127.0.0.1:7777` with three tabs:
 
-- **Resources**: one row per device with CPU, memory, disk, GPU, VRAM and running jobs.
-  Click a row for its top processes.
+- **Resources**: one card per device with CPU, memory, disk, GPU and VRAM, the last ten
+  minutes of load, and its latest command. Open "Details" for its top processes.
 - **Running now**: every command and job in progress, with a live tail of its output.
 - **Trace**: everything that was run through arachne (commands, jobs, desktop actions),
   newest first, with who ran it (for example `claude-code`), where from, the result and how
@@ -116,6 +116,21 @@ output is not recorded. Set `ARACHNE_ACTOR=name` to label what an agent or scrip
 
 There is no login. With `--tailnet` it listens on this device's Tailscale address instead,
 so your other devices (and nothing else) can open it.
+
+### Open it from anywhere
+
+To see the dashboard away from your tailnet, host the page and keep the data behind a key:
+
+1. **Hub**: on an always-on device of yours, run `arachne dashboard --bind 0.0.0.0` (as a
+   service) and give it an HTTPS address that requires a token, such as a private published
+   port on your VPS provider or a reverse proxy.
+2. **Page**: deploy `dashboard/` to Vercel (`vercel deploy --prod`) with three environment
+   variables: `HUB_URL` (the hub's address), `HUB_TOKEN` (the bearer token that address
+   requires, if any) and `DASHBOARD_KEY` (any long random string).
+3. Open `https://<your-deployment>/#key=<DASHBOARD_KEY>` once per browser. The key is kept
+   in that browser; without it the deployment returns nothing.
+
+The hub address and its token stay on the server side of the deployment.
 
 ## How it works
 
