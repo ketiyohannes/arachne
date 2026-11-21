@@ -48,6 +48,8 @@ export interface Stats {
   desktop: { running: boolean; installed: boolean };
 }
 
+export type Sample = [number, number, number, number | null];
+
 export interface Device {
   name: string;
   ip: string;
@@ -58,6 +60,8 @@ export interface Device {
   relay: string;
   stats?: Stats;
   error?: string;
+  /** Recent load, oldest first: [epoch seconds, CPU %, memory %, GPU % or null]. */
+  history?: Sample[];
 }
 
 export interface State {

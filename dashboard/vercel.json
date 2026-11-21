@@ -1,0 +1,9 @@
+{
+  "framework": "vite",
+  "installCommand": "bun install",
+  "buildCommand": "bun run build:web",
+  "outputDirectory": "dist",
+  "headers": [
+    { "source": "/(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }, { "key": "Referrer-Policy", "value": "no-referrer" }] }
+  ]
+}

@@ -2,7 +2,7 @@
 
 A background thread polls `tailscale status` and each online device's `stats` verb
 (over the same SSH path as every other command); the page fetches /api/state.
-No accounts and no writes: it binds to this machine unless --tailnet is given.
+No accounts and no writes: it binds to this machine unless --tailnet or --bind is given.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ import json
 import threading
 import time
 import webbrowser
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
@@ -65,16 +66,33 @@ def fetch_output(query: dict) -> dict:
         return {"text": "", "error": str(e) if isinstance(e, Error) else "expected device and id"}
 
 
-def serve(port: int, tailnet: bool, interval: float, open_browser: bool) -> int:
+HISTORY_SAMPLES = 120  # ten minutes at the default interval
+
+
+def record_history(history: dict, state: dict) -> None:
+    """Attach each device's recent load as [time, cpu %, memory %, gpu % or None] samples, oldest first."""
+    for dev in state["devices"]:
+        stats = dev.get("stats")
+        samples = history.setdefault(dev["name"], deque(maxlen=HISTORY_SAMPLES))
+        if stats:
+            gpus = stats.get("gpus") or []
+            gpu = gpus[0].get("util") if gpus else None
+            samples.append([round(state["generated"]), stats["cpu"]["percent"], stats["memory"]["percent"], gpu])
+        dev["history"] = list(samples)
+
+
+def serve(port: int, tailnet: bool, interval: float, open_browser: bool, bind: str | None = None) -> int:
     page = resources.files("arachne").joinpath("dashboard.html").read_bytes()
     state = {"generated": 0, "devices": [], "starting": True}
     lock = threading.Lock()
+    history: dict = {}
 
     def poll() -> None:
         nonlocal state
         while True:
             fresh = collect()
             fresh["interval"] = interval
+            record_history(history, fresh)
             with lock:
                 state = fresh
             time.sleep(interval)
@@ -103,7 +121,9 @@ def serve(port: int, tailnet: bool, interval: float, open_browser: bool) -> int:
             pass
 
     host = "127.0.0.1"
-    if tailnet:
+    if bind:
+        host = bind
+    elif tailnet:
         me = next(d for d in devices(tailscale_status()) if d["self"])
         host = me["ip"]  # reachable from your tailnet only, never the LAN or the internet
     try:

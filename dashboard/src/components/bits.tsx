@@ -36,7 +36,7 @@ export function Tabs<T extends string>({ tabs, active, onChange }: { tabs: TabSp
 
 export function Panel({ aside, children }: { aside?: ReactNode; children: ReactNode }) {
   return (
-    <section role="tabpanel" className="mt-3 overflow-hidden rounded-lg border border-line bg-panel">
+    <section role="tabpanel" className="mt-3 overflow-hidden rounded-xl border border-line bg-panel">
       {aside && (
         <div className="flex flex-wrap items-center justify-end gap-2 border-b border-line px-4 py-2 text-[12px] text-ink-3">{aside}</div>
       )}
@@ -62,15 +62,46 @@ export function StatusTag({ item }: { item: TraceItem }) {
   return <span className={`shrink-0 whitespace-nowrap text-[12px] font-medium ${styles[item.status]}`}>{text}</span>;
 }
 
-/** A value with a thin bar under it. Empty when the device has no such resource. */
-export function Gauge({ percent, text }: { percent: number | null; text: string }) {
-  if (percent === null) return <span className="text-ink-3">–</span>;
+/** Accent normally; amber and red as a resource approaches its limit. */
+export function levelColor(percent: number): string {
+  return percent >= 90 ? "var(--bad)" : percent >= 75 ? "var(--warn)" : "var(--accent)";
+}
+
+export function Bar({ percent }: { percent: number }) {
+  const width = Math.max(0, Math.min(100, percent));
   return (
-    <div className="min-w-0" title={`${Math.round(percent)}%`}>
-      <div className="truncate text-[13px]">{text}</div>
-      <div className="mt-1 h-1 overflow-hidden rounded-full bg-track">
-        <div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(0, Math.min(100, percent))}%` }} />
-      </div>
+    <div className="h-1.5 overflow-hidden rounded-full bg-track" role="img" aria-label={`${Math.round(percent)}%`}>
+      <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${width}%`, background: levelColor(percent) }} />
     </div>
+  );
+}
+
+/** Recent readings (0-100) as a filled line, newest on the right. */
+export function Sparkline({ values }: { values: number[] }) {
+  if (values.length < 2) return <div className="h-8 rounded bg-track/50" />;
+  const step = 100 / (values.length - 1);
+  const points = values.map((v, i) => `${(i * step).toFixed(2)},${(27 - (Math.max(0, Math.min(100, v)) / 100) * 26).toFixed(2)}`);
+  const color = levelColor(values[values.length - 1]);
+  return (
+    <svg viewBox="0 0 100 28" preserveAspectRatio="none" className="block h-8 w-full" aria-hidden="true">
+      <polygon points={`0,28 ${points.join(" ")} 100,28`} fill={color} opacity="0.12" />
+      <polyline points={points.join(" ")} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+/** One headline number in the summary row. */
+export function Stat({ label, value, detail, tone, onClick }: { label: string; value: ReactNode; detail?: string; tone?: "bad" | "accent"; onClick?: () => void }) {
+  const color = tone === "bad" ? "text-bad" : tone === "accent" ? "text-accent" : "text-ink";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-w-0 cursor-pointer flex-col items-stretch justify-start rounded-xl border border-solid border-line bg-panel px-3.5 py-3 text-left font-[inherit] text-ink hover:border-ink-3"
+    >
+      <div className="truncate text-[12px] text-ink-3">{label}</div>
+      <div className={`mt-0.5 text-[22px] font-semibold leading-tight ${color}`}>{value}</div>
+      {detail && <div className="truncate text-[12px] text-ink-3">{detail}</div>}
+    </button>
   );
 }

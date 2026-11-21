@@ -248,7 +248,7 @@ def cmd_stats(args, command) -> int:
 def cmd_dashboard(args, command) -> int:
     from arachne import dashboard
 
-    return dashboard.serve(args.port, args.tailnet, args.interval, args.open)
+    return dashboard.serve(args.port, args.tailnet, args.interval, args.open, args.bind)
 
 
 def cmd_setup(args, command) -> int:
@@ -372,6 +372,7 @@ def build_parser() -> argparse.ArgumentParser:
     dash = add("dashboard", cmd_dashboard, "serve a live web dashboard of every device")
     dash.add_argument("-p", "--port", type=int, default=7777)
     dash.add_argument("--tailnet", action="store_true", help="also reachable from your other devices (default: this machine only)")
+    dash.add_argument("--bind", metavar="ADDRESS", help="listen on this address instead, e.g. 0.0.0.0 behind a proxy that adds its own access control")
     dash.add_argument("--interval", type=float, default=5, help="seconds between refreshes")
     dash.add_argument("--open", action="store_true", help="open it in the browser")
 

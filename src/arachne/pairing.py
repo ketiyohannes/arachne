@@ -80,6 +80,8 @@ def invite_server(host: str, token: str, on_join, identify=own_device_at) -> Thr
 
 
 def invite() -> int:
+    # This command prints, then waits: flush each line even when the output is piped or logged.
+    sys.stdout.reconfigure(line_buffering=True)
     devs = devices(tailscale_status())
     me = next(d for d in devs if d["self"])
     token = secrets.token_urlsafe(18)

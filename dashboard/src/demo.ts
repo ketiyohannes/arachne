@@ -52,6 +52,19 @@ export function demoState(): State {
     },
     { name: "deck", ip: "100.64.0.4", os: "linux", online: false, self: false, link: "offline", relay: "lhr" },
   ];
+  // A plausible ten minutes of load around each device's current reading.
+  for (const d of devices) {
+    const s = d.stats;
+    if (!s) continue;
+    const wobble = (base: number, i: number, seed: number) =>
+      Math.max(1, Math.min(100, base + 14 * Math.sin(i / 7 + seed) + 6 * Math.sin(i / 2.3 + seed * 3)));
+    d.history = Array.from({ length: 120 }, (_, i) => [
+      now - (119 - i) * 5,
+      i === 119 ? s.cpu.percent : wobble(s.cpu.percent, i, d.name.length),
+      i === 119 ? s.memory.percent : wobble(s.memory.percent, i / 4, d.name.length + 2),
+      s.gpus[0]?.util != null ? (i === 119 ? s.gpus[0].util : wobble(s.gpus[0].util, i, 1)) : null,
+    ]);
+  }
   return { generated: now, interval: 5, tailnet: "tail0000.ts.net", tailscale: "Running", devices };
 }
 

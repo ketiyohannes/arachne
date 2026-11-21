@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Panel, Tabs } from "./components/bits";
+import { ApiError, adoptKeyFromLink, getJson, saveKey } from "./api";
+import { Panel, Stat, Tabs } from "./components/bits";
 import { Devices } from "./components/Devices";
 import { RunningNow, Trace } from "./components/Trace";
 import { demoState } from "./demo";
@@ -10,11 +11,16 @@ const DEMO = new URLSearchParams(location.search).has("demo");
 
 type Tab = "resources" | "running" | "trace";
 const TABS: Tab[] = ["resources", "running", "trace"];
+adoptKeyFromLink();
+
 const tabFromHash = (): Tab => TABS.find((t) => t === location.hash.slice(1)) ?? "resources";
 
-function useFleet(): { state: State | null; stale: boolean } {
+/** ok: live data. locked: the hosted proxy wants an access key. waking: the hub is resuming. down: no answer. */
+type Link = "ok" | "locked" | "waking" | "down";
+
+function useFleet(attempt: number): { state: State | null; link: Link } {
   const [state, setState] = useState<State | null>(DEMO ? demoState() : null);
-  const [stale, setStale] = useState(false);
+  const [link, setLink] = useState<Link>("ok");
   useEffect(() => {
     if (DEMO) return;
     let timer: number;
@@ -22,12 +28,14 @@ function useFleet(): { state: State | null; stale: boolean } {
     const tick = async () => {
       let wait = 5;
       try {
-        const next: State = await (await fetch("/api/state", { cache: "no-store" })).json();
+        const next = await getJson<State>("/api/state");
         wait = next.starting ? 1 : next.interval ?? 5;
         if (!next.starting) setState(next);
-        setStale(false);
-      } catch {
-        setStale(true);
+        setLink("ok");
+      } catch (e) {
+        const status = e instanceof ApiError ? e.status : 0;
+        setLink(status === 401 ? "locked" : status === 503 ? "waking" : "down");
+        if (status === 401) return; // wait for a key instead of retrying
       }
       if (!stopped) timer = window.setTimeout(tick, wait * 1000);
     };
@@ -36,8 +44,37 @@ function useFleet(): { state: State | null; stale: boolean } {
       stopped = true;
       clearTimeout(timer);
     };
-  }, []);
-  return { state, stale };
+  }, [attempt]);
+  return { state, link };
+}
+
+function KeyPrompt({ onSubmit }: { onSubmit: (key: string) => void }) {
+  const [value, setValue] = useState("");
+  return (
+    <form
+      className="mx-auto mt-[18vh] max-w-sm rounded-xl border border-line bg-panel p-5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (value.trim()) onSubmit(value);
+      }}
+    >
+      <h1 className="m-0 text-[16px] font-semibold">arachne</h1>
+      <p className="mb-3 mt-1 text-[13px] text-ink-2">Enter the access key for this dashboard. It is remembered on this device.</p>
+      <input
+        type="password"
+        autoFocus
+        autoComplete="current-password"
+        aria-label="Access key"
+        placeholder="Access key"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="box-border w-full rounded-md border border-solid border-line bg-bg px-3 py-2 font-[inherit] text-[16px] text-ink"
+      />
+      <button type="submit" className="mt-3 w-full cursor-pointer rounded-md border-0 bg-accent px-3 py-2 font-[inherit] text-[14px] font-medium text-white">
+        Open dashboard
+      </button>
+    </form>
+  );
 }
 
 /** Current time in epoch seconds, ticking so "running for 12s" keeps counting between refreshes. */
@@ -65,7 +102,8 @@ function Filter({ label, value, options, onChange }: { label: string; value: str
 }
 
 export function App() {
-  const { state, stale } = useFleet();
+  const [attempt, setAttempt] = useState(0);
+  const { state, link } = useFleet(attempt);
   const now = useNow();
   const [tab, setTab] = useState<Tab>(tabFromHash);
   const [device, setDevice] = useState("");
@@ -83,6 +121,20 @@ export function App() {
   const actors = [...new Set(items.map((i) => i.actor).filter(Boolean))].sort();
   const shown = items.filter((i) => (!device || i.device === device) && (!actor || i.actor === actor));
   const online = devices.filter((d) => d.online).length;
+  const lastDay = items.filter((i) => i.started > now - 86_400);
+  const failed = lastDay.filter((i) => i.status === "failed" || i.status === "lost").length;
+  const age = state ? Math.max(0, Math.round(now - state.generated)) : 0;
+
+  if (link === "locked") {
+    return (
+      <KeyPrompt
+        onSubmit={(key) => {
+          saveKey(key);
+          setAttempt(attempt + 1);
+        }}
+      />
+    );
+  }
 
   let warning = state?.error ?? "";
   if (!warning && state?.tailscale && state.tailscale !== "Running") {
@@ -92,16 +144,25 @@ export function App() {
   return (
     <div className="mx-auto max-w-[1200px] px-3 pb-10 pt-4 sm:px-5">
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="m-0 text-[16px] font-semibold">arachne</h1>
+        <h1 className="m-0 text-[17px] font-semibold tracking-tight">arachne</h1>
         {state?.tailnet && <span className="text-[13px] text-ink-3">{state.tailnet}</span>}
-        <span className={`ml-auto text-[12px] ${stale ? "text-bad" : "text-ink-3"}`}>
-          {stale
+        <span className={`ml-auto flex items-center gap-1.5 text-[12px] ${link === "down" ? "text-bad" : "text-ink-3"}`}>
+          {link === "ok" && state && <span className={`inline-block size-1.5 rounded-full ${age < 30 ? "animate-pulse bg-good" : "bg-warn"}`} />}
+          {link === "down"
             ? "dashboard server not responding"
-            : state
-              ? `${DEMO ? "demo data" : "updated"} ${new Date(state.generated * 1000).toLocaleTimeString()}`
-              : "loading…"}
+            : link === "waking"
+              ? "hub is waking up…"
+              : state
+                ? DEMO ? "demo data" : age < 30 ? "live" : `last update ${age}s ago`
+                : "loading…"}
         </span>
       </header>
+
+      {link === "waking" && !state && (
+        <p className="mt-3 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-ink-2">
+          The hub was asleep and is starting. This page fills in by itself, usually within a minute.
+        </p>
+      )}
 
       {warning && (
         <p className="mb-0 mt-3 rounded-lg border border-line border-l-[3px] border-l-warn bg-panel px-3 py-2 text-[13px]">{warning}</p>
@@ -109,6 +170,13 @@ export function App() {
 
       {devices.length > 0 && (
         <>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Stat label="Devices online" value={<>{online}<span className="text-ink-3"> / {devices.length}</span></>} onClick={() => showTab("resources")} />
+            <Stat label="Running now" value={running.length} tone={running.length ? "accent" : undefined} detail={running[0]?.device} onClick={() => showTab("running")} />
+            <Stat label="Commands, 24 h" value={lastDay.length} detail={items[0] ? `latest on ${items[0].device}` : undefined} onClick={() => showTab("trace")} />
+            <Stat label="Failed, 24 h" value={failed} tone={failed ? "bad" : undefined} onClick={() => showTab("trace")} />
+          </div>
+
           <Tabs
             active={tab}
             onChange={showTab}
@@ -119,11 +187,7 @@ export function App() {
             ]}
           />
 
-          {tab === "resources" && (
-            <Panel aside={`${online} of ${devices.length} online`}>
-              <Devices devices={devices} />
-            </Panel>
-          )}
+          {tab === "resources" && <Devices devices={devices} items={items} />}
 
           {tab === "running" && (
             <Panel>

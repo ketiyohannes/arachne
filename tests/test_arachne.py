@@ -331,3 +331,13 @@ def test_dashboard_output_endpoint_reads_from_the_device(capfd):
     assert "visible-in-dashboard" in result["text"]
     assert "error" in dashboard.fetch_output({"device": ["nope"], "id": ["x"]})
     assert "error" in dashboard.fetch_output({})
+
+
+def test_dashboard_history_keeps_recent_load_per_device():
+    history: dict = {}
+    stats = {"cpu": {"percent": 12.5}, "memory": {"percent": 40.0}, "gpus": [{"util": 77}]}
+    for generated in (100.0, 105.0):
+        state = {"generated": generated, "devices": [{"name": "desktop", "stats": stats}, {"name": "deck"}]}
+        dashboard.record_history(history, state)
+    assert state["devices"][0]["history"] == [[100, 12.5, 40.0, 77], [105, 12.5, 40.0, 77]]
+    assert state["devices"][1]["history"] == []
