@@ -34,7 +34,8 @@ uv tool install --force "$REPO"
 
 say "Setting up this device"
 # Re-attach the terminal: this script usually arrives on a pipe, and setup may need to prompt (sudo, sign-in).
-if [ -e /dev/tty ]; then
+# /dev/tty exists even without a controlling terminal (CI, remote exec), so try opening it.
+if (: </dev/tty) 2>/dev/null; then
   arachne setup "$@" </dev/tty
 else
   arachne setup "$@"
